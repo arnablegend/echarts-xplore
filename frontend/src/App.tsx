@@ -1,10 +1,14 @@
 import { useState } from "react";
 
-export default function App() {
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+type HelloWorldResponse = {
+  message: string;
+};
 
-  async function getHelloWorld() {
+export default function App() {
+  const [message, setMessage] = useState<string>("");
+  const [error, setError] = useState<string>("");
+
+  async function getHelloWorld(): Promise<void> {
     setError("");
     setMessage("");
 
@@ -15,10 +19,14 @@ export default function App() {
         throw new Error(`Request failed with status ${response.status}`);
       }
 
-      const data = await response.json();
+      const data: HelloWorldResponse = await response.json();
       setMessage(data.message);
-    } catch (requestError) {
-      setError(requestError.message);
+    } catch (requestError: unknown) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "An unexpected error occurred",
+      );
     }
   }
 
