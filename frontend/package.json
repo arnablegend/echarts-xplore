@@ -11,8 +11,9 @@
   "dependencies": {
     "react": "latest",
     "react-dom": "latest",
+    "apache-arrow": "^21.1.0",
     "echarts": "^6.0.0",
-    "echarts-for-react": "^3.0.2"
+    "plotly.js-dist-min": "^3.1.2"
   },
   "devDependencies": {
     "vite": "^7.0.0",

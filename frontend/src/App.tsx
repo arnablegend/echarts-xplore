@@ -1,44 +1,87 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import ReactECharts from "echarts-for-react";
+import { tableFromIPC } from "apache-arrow";
+import * as echarts from "echarts";
 import type { EChartsOption } from "echarts";
+import Plotly from "plotly.js-dist-min";
 
 type SalesResponse = { labels: string[]; values: number[] };
 type StreamPoint = { label: string; value: number };
+type PlotlyFigure = { data: PlotlyTrace[]; layout?: PlotlyLayout };
+type PlotlyTrace = Record<string, unknown>;
+type PlotlyLayout = Record<string, unknown>;
+type DataSample = { index: number; rows: number };
+type XYData = { x: number[]; y: number[] };
+type ChartLibrary = "plotly" | "echarts";
+type DataframeSource = "pandas" | "pyarrow";
 
 const palette = ["#7167f9", "#2bc48a", "#f6b84b", "#e56b8d"];
 
-function baseOption(title: string): EChartsOption {
+function chartLayout(title: string): PlotlyLayout {
   return {
-    title: { text: title, textStyle: { fontSize: 14, fontWeight: 600, color: "#19213d" } },
-    tooltip: { trigger: "axis" },
-    grid: { left: 42, right: 20, top: 48, bottom: 32 },
-    xAxis: { type: "category", boundaryGap: false, axisLine: { lineStyle: { color: "#dce0ea" } } },
-    yAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f6" } } },
+    title: { text: title, font: { size: 14, color: "#19213d" }, x: 0, xanchor: "left" },
+    margin: { l: 42, r: 18, t: 44, b: 34 }, paper_bgcolor: "transparent", plot_bgcolor: "transparent",
+    font: { family: "DM Sans, sans-serif", color: "#65708b", size: 11 },
+    xaxis: { fixedrange: true, showgrid: false, linecolor: "#dce0ea", zeroline: false },
+    yaxis: { fixedrange: true, gridcolor: "#eef0f6", zeroline: false },
+    showlegend: false,
   };
 }
 
-type ChartCardProps = {
-  number: string;
-  title: string;
-  note: string;
-  children: React.ReactNode;
-  className?: string;
-};
+function PlotlyChart({ figure, height = 245 }: { figure: PlotlyFigure; height?: number }) {
+  const element = useRef<HTMLDivElement>(null);
 
-function ChartCard({ number, title, note, children, className = "" }: ChartCardProps) {
-  return <section className={`chart-card ${className}`}>
-    <div className="card-heading"><span>{number}</span><div><h2>{title}</h2><p>{note}</p></div></div>
-    {children}
-  </section>;
+  useEffect(() => {
+    if (!element.current) return;
+    const node = element.current;
+    void Plotly.react(node, figure.data, { ...figure.layout, autosize: true }, { responsive: true, displayModeBar: false });
+    const observer = new ResizeObserver(() => Plotly.Plots.resize(node));
+    observer.observe(node);
+    return () => { observer.disconnect(); Plotly.purge(node); };
+  }, [figure]);
+
+  return <div ref={element} style={{ height, width: "100%" }} />;
+}
+
+function EChartsChart({ option, height = 360 }: { option: EChartsOption; height?: number }) {
+  const element = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!element.current) return;
+    const chart = echarts.init(element.current);
+    chart.setOption(option);
+    const observer = new ResizeObserver(() => chart.resize());
+    observer.observe(element.current);
+    return () => { observer.disconnect(); chart.dispose(); };
+  }, [option]);
+  return <div ref={element} style={{ height, width: "100%" }} />;
 }
 
 function ReusableChart({ title, labels, values, color = palette[0] }: { title: string; labels: string[]; values: number[]; color?: string }) {
-  const option = useMemo<EChartsOption>(() => ({
-    ...baseOption(title),
-    xAxis: { ...baseOption(title).xAxis as object, data: labels },
-    series: [{ type: "line", data: values, smooth: true, symbolSize: 7, lineStyle: { width: 3, color }, itemStyle: { color }, areaStyle: { color: `${color}22` } }],
+  const figure = useMemo<PlotlyFigure>(() => ({
+    data: [{ type: "scatter", mode: "lines+markers", x: labels, y: values, line: { color, width: 3, shape: "spline" }, marker: { color, size: 7 }, fill: "tozeroy", fillcolor: `${color}20`, hovertemplate: "%{x}: %{y}<extra></extra>" }],
+    layout: chartLayout(title),
   }), [title, labels, values, color]);
-  return <ReactECharts option={option} style={{ height: 245, width: "100%" }} />;
+  return <PlotlyChart figure={figure} />;
+}
+
+function ChartCard({ number, title, note, children }: { number: string; title: string; note: string; children: React.ReactNode }) {
+  return <section className="chart-card"><div className="card-heading"><span>{number}</span><div><h2>{title}</h2><p>{note}</p></div></div>{children}</section>;
+}
+
+function DatasetChart({ library, dataset }: { library: ChartLibrary; dataset: XYData }) {
+  const plotlyFigure = useMemo<PlotlyFigure>(() => ({
+    data: [{ type: "scattergl", mode: "markers", x: dataset.y, y: dataset.x, marker: { color: palette[0], size: 3, opacity: 0.65 }, hovertemplate: "Y: %{x}<br>X: %{y:.3f}<extra></extra>" }],
+    layout: { ...chartLayout("Pandas / Arrow DataFrame — Y vs X"), xaxis: { title: "Y (integer)" }, yaxis: { title: "X (float: 0–50)" }, dragmode: "zoom" },
+  }), [dataset]);
+  const echartOption = useMemo<EChartsOption>(() => ({
+    animation: false,
+    title: { text: "Pandas / Arrow DataFrame — Y vs X", left: 0, textStyle: { fontSize: 14, color: "#19213d" } },
+    tooltip: { trigger: "axis" }, grid: { left: 54, right: 24, top: 46, bottom: 55 },
+    xAxis: { type: "value", name: "Y (integer)", nameLocation: "middle", nameGap: 30, splitLine: { lineStyle: { color: "#eef0f6" } } },
+    yAxis: { type: "value", name: "X (float: 0–50)", nameLocation: "middle", nameGap: 40, splitLine: { lineStyle: { color: "#eef0f6" } } },
+    dataZoom: [{ type: "inside" }, { type: "slider", bottom: 2 }],
+    series: [{ type: "scatter", data: dataset.x.map((x, index) => [dataset.y[index], x]), symbolSize: 3, progressive: 5_000, progressiveThreshold: 10_000, itemStyle: { color: palette[0], opacity: 0.65 } }],
+  }), [dataset]);
+  return library === "plotly" ? <PlotlyChart figure={plotlyFigure} height={390} /> : <EChartsChart option={echartOption} height={390} />;
 }
 
 export default function App() {
@@ -48,59 +91,74 @@ export default function App() {
   const [cardWidth, setCardWidth] = useState(100);
   const [stream, setStream] = useState<StreamPoint[]>([]);
   const [connected, setConnected] = useState(false);
-  const [serverOption, setServerOption] = useState<EChartsOption | null>(null);
-  const resizeContainer = useRef<HTMLDivElement>(null);
+  const [serverFigure, setServerFigure] = useState<PlotlyFigure | null>(null);
+  const [samples, setSamples] = useState<DataSample[]>([]);
+  const [sampleIndex, setSampleIndex] = useState(0);
+  const [library, setLibrary] = useState<ChartLibrary>("plotly");
+  const [dataframeSource, setDataframeSource] = useState<DataframeSource>("pandas");
+  const [dataset, setDataset] = useState<XYData | null>(null);
+  const [datasetError, setDatasetError] = useState("");
+  const [loadingDataset, setLoadingDataset] = useState(false);
+  const [loadTime, setLoadTime] = useState<number | null>(null);
 
-  const basicOption = useMemo<EChartsOption>(() => ({
-    ...baseOption("Weekly activity"),
-    xAxis: { ...baseOption("").xAxis as object, data: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] },
-    series: [{ type: "bar", data: [32, 48, 36, 58, 42, 64, 52], barWidth: 20, itemStyle: { color: palette[0], borderRadius: [5, 5, 0, 0] } }],
+  const basicFigure = useMemo<PlotlyFigure>(() => ({
+    data: [{ type: "bar", x: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], y: [32, 48, 36, 58, 42, 64, 52], marker: { color: palette[0], line: { width: 0 } }, hovertemplate: "%{x}: %{y}<extra></extra>" }],
+    layout: chartLayout("Weekly activity"),
   }), []);
-
-  const stateOption = useMemo<EChartsOption>(() => ({
-    ...baseOption("Live state value"),
-    xAxis: { ...baseOption("").xAxis as object, data: ["08:00", "10:00", "12:00", "14:00", "16:00"] },
-    series: [{ type: "line", smooth: true, data: [34, 48, visitors - 10, visitors, visitors + 6], lineStyle: { color: palette[1], width: 3 }, itemStyle: { color: palette[1] }, areaStyle: { color: "#2bc48a25" } }],
+  const stateFigure = useMemo<PlotlyFigure>(() => ({
+    data: [{ type: "scatter", mode: "lines+markers", x: ["08:00", "10:00", "12:00", "14:00", "16:00"], y: [34, 48, visitors - 10, visitors, visitors + 6], line: { color: palette[1], width: 3, shape: "spline" }, marker: { color: palette[1], size: 7 }, fill: "tozeroy", fillcolor: "#2bc48a25" }],
+    layout: chartLayout("Live state value"),
   }), [visitors]);
-
-  const streamOption = useMemo<EChartsOption>(() => ({
-    ...baseOption("Events from server"),
-    xAxis: { ...baseOption("").xAxis as object, data: stream.map((point) => point.label) },
-    series: [{ type: "line", smooth: true, showSymbol: false, data: stream.map((point) => point.value), lineStyle: { color: palette[3], width: 3 }, areaStyle: { color: "#e56b8d20" } }],
+  const streamFigure = useMemo<PlotlyFigure>(() => ({
+    data: [{ type: "scatter", mode: "lines", x: stream.map((point) => point.label), y: stream.map((point) => point.value), line: { color: palette[3], width: 3, shape: "spline" }, fill: "tozeroy", fillcolor: "#e56b8d20" }],
+    layout: chartLayout("Events from server"),
   }), [stream]);
 
   useEffect(() => {
-    fetch("/api/sales").then((response) => response.ok ? response.json() : Promise.reject(new Error("Could not load sales data")))
-      .then(setSales).catch((error: Error) => setSalesError(error.message));
-    fetch("/api/chart-option").then((response) => response.ok ? response.json() : Promise.reject(new Error("Could not load chart configuration")))
-      .then(setServerOption).catch(() => undefined);
+    fetch("/api/sales").then((response) => response.ok ? response.json() : Promise.reject(new Error("Could not load sales data"))).then(setSales).catch((error: Error) => setSalesError(error.message));
+    fetch("/api/chart-option").then((response) => response.ok ? response.json() : Promise.reject(new Error("Could not load figure"))).then(setServerFigure).catch(() => undefined);
+    fetch("/api/samples").then((response) => response.ok ? response.json() : Promise.reject(new Error("Could not load samples"))).then((data: { samples: DataSample[] }) => setSamples(data.samples)).catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    const source = new EventSource("/api/stream");
+    source.onopen = () => setConnected(true);
+    source.onmessage = (event) => setStream((current) => [...current, JSON.parse(event.data) as StreamPoint].slice(-12));
+    source.onerror = () => setConnected(false);
+    return () => source.close();
   }, []);
 
-  useEffect(() => {
-    const eventSource = new EventSource("/api/stream");
-    eventSource.onopen = () => setConnected(true);
-    eventSource.onmessage = (event) => setStream((current) => [...current, JSON.parse(event.data) as StreamPoint].slice(-12));
-    eventSource.onerror = () => setConnected(false);
-    return () => eventSource.close();
-  }, []);
-
-  useEffect(() => {
-    const observer = new ResizeObserver(() => undefined);
-    if (resizeContainer.current) observer.observe(resizeContainer.current);
-    return () => observer.disconnect();
-  }, []);
+  async function loadDataframe(): Promise<void> {
+    setLoadingDataset(true); setDatasetError("");
+    const startedAt = performance.now();
+    try {
+      const response = await fetch(`/api/dataframe/${dataframeSource}?sample_index=${sampleIndex}`);
+      if (!response.ok) throw new Error(`Server returned ${response.status}`);
+      const table = tableFromIPC(await response.arrayBuffer());
+      const xColumn = table.getChild("x");
+      const yColumn = table.getChild("y");
+      if (!xColumn || !yColumn) throw new Error("Arrow stream did not contain x and y columns");
+      setDataset({ x: Array.from(xColumn).map(Number), y: Array.from(yColumn).map(Number) });
+      setLoadTime(Math.round(performance.now() - startedAt));
+    } catch (error) { setDatasetError(error instanceof Error ? error.message : "Could not load DataFrame"); }
+    finally { setLoadingDataset(false); }
+  }
 
   return <main>
-    <header><div><p className="eyebrow">ECharts + React + FastAPI</p><h1>Chart pattern playground</h1><p className="subtitle">Eight small, practical examples using a shared React chart foundation.</p></div><div className="status"><i /> FastAPI connected</div></header>
+    <header><div><p className="eyebrow">Plotly.js + React + FastAPI</p><h1>Chart pattern playground</h1><p className="subtitle">Eight practical Plotly patterns built on a reusable React chart component.</p></div><div className="status"><i /> FastAPI connected</div></header>
+    <section className="dataset-lab">
+      <div className="dataset-copy"><p className="eyebrow">DataFrame benchmark</p><h2>Arrow-powered large dataset viewer</h2><p>Select pandas or direct PyArrow construction on FastAPI, then transfer typed X (float) and Y (integer) columns to either charting library.</p></div>
+      <div className="dataset-controls"><label>Sample <select value={sampleIndex} onChange={(event) => setSampleIndex(Number(event.target.value))}>{samples.map((sample) => <option key={sample.index} value={sample.index}>#{sample.index + 1} — {sample.rows.toLocaleString()} rows</option>)}</select></label><label>DataFrame <select value={dataframeSource} onChange={(event) => setDataframeSource(event.target.value as DataframeSource)}><option value="pandas">Pandas DataFrame</option><option value="pyarrow">PyArrow Table</option></select></label><label>Library <select value={library} onChange={(event) => setLibrary(event.target.value as ChartLibrary)}><option value="plotly">Plotly.js (WebGL)</option><option value="echarts">ECharts (progressive)</option></select></label><button type="button" onClick={loadDataframe} disabled={loadingDataset || samples.length === 0}>{loadingDataset ? "Loading…" : "Load sample"}</button></div>
+      {datasetError && <p className="error dataset-message">{datasetError}</p>}{dataset && <><p className="dataset-message">Loaded <strong>{dataset.x.length.toLocaleString()}</strong> rows in {loadTime} ms from {dataframeSource === "pandas" ? "Pandas DataFrame" : "PyArrow Table"} with {library === "plotly" ? "Plotly WebGL" : "ECharts progressive"}.</p><DatasetChart library={library} dataset={dataset} /></>}
+    </section>
     <div className="grid">
-      <ChartCard number="01" title="Basic chart component" note="A static EChartsOption rendered through React."><ReactECharts option={basicOption} style={{ height: 245 }} /></ChartCard>
-      <ChartCard number="02" title="Update with React state" note="The option recomputes when component state changes."><div className="metric"><strong>{visitors}</strong><button onClick={() => setVisitors((value) => value + 8)}>Add visitors</button></div><ReactECharts option={stateOption} style={{ height: 190 }} /></ChartCard>
-      <ChartCard number="03" title="Fetch backend data" note="Data from GET /api/sales becomes a chart series.">{salesError ? <p className="error">{salesError}</p> : sales ? <ReusableChart title="Monthly sales" labels={sales.labels} values={sales.values} color={palette[2]} /> : <p className="loading">Loading chart data…</p>}</ChartCard>
-      <ChartCard number="04" title="Resizable chart component" note="Drag the control to resize its parent container."><label className="range-label">Width <input type="range" min="55" max="100" value={cardWidth} onChange={(event) => setCardWidth(Number(event.target.value))} /> {cardWidth}%</label><div ref={resizeContainer} className="resizable-chart" style={{ width: `${cardWidth}%` }}><ReusableChart title="Container-aware chart" labels={["Q1", "Q2", "Q3", "Q4"]} values={[24, 42, 31, 61]} color={palette[3]} /></div></ChartCard>
-      <ChartCard number="05" title="Responsive chart" note="It fills the available grid column and reacts to viewport changes."><div className="responsive-wrap"><ReusableChart title="Viewport friendly" labels={["Mobile", "Tablet", "Desktop"]} values={[44, 61, 86]} color={palette[1]} /></div></ChartCard>
+      <ChartCard number="01" title="Basic chart component" note="A static Plotly figure rendered from React."><PlotlyChart figure={basicFigure} /></ChartCard>
+      <ChartCard number="02" title="Update with React state" note="The figure rerenders when component state changes."><div className="metric"><strong>{visitors}</strong><button onClick={() => setVisitors((value) => value + 8)}>Add visitors</button></div><PlotlyChart figure={stateFigure} height={190} /></ChartCard>
+      <ChartCard number="03" title="Fetch backend data" note="GET /api/sales becomes a Plotly trace.">{salesError ? <p className="error">{salesError}</p> : sales ? <ReusableChart title="Monthly sales" labels={sales.labels} values={sales.values} color={palette[2]} /> : <p className="loading">Loading chart data…</p>}</ChartCard>
+      <ChartCard number="04" title="Resizable chart component" note="Change the parent width; ResizeObserver updates Plotly."><label className="range-label">Width <input type="range" min="55" max="100" value={cardWidth} onChange={(event) => setCardWidth(Number(event.target.value))} /> {cardWidth}%</label><div className="resizable-chart" style={{ width: `${cardWidth}%` }}><ReusableChart title="Container-aware chart" labels={["Q1", "Q2", "Q3", "Q4"]} values={[24, 42, 31, 61]} color={palette[3]} /></div></ChartCard>
+      <ChartCard number="05" title="Responsive chart" note="Responsive Plotly configuration fills the grid column."><ReusableChart title="Viewport friendly" labels={["Mobile", "Tablet", "Desktop"]} values={[44, 61, 86]} color={palette[1]} /></ChartCard>
       <ChartCard number="06" title="Reusable chart component" note="One typed component, varied data and styling."><ReusableChart title="Team velocity" labels={["Sprint 1", "Sprint 2", "Sprint 3", "Sprint 4"]} values={[18, 29, 25, 39]} /></ChartCard>
-      <ChartCard number="07" title="Fetch EChartsOption directly" note="FastAPI returns a ready-to-render ECharts option.">{serverOption ? <ReactECharts option={serverOption} style={{ height: 245 }} /> : <p className="loading">Loading server-side option…</p>}</ChartCard>
-      <ChartCard number="08" title="Streaming updates" note="Server-Sent Events append live data points."><div className="stream-status"><i className={connected ? "on" : ""} /> {connected ? "Streaming" : "Reconnecting…"}</div><ReactECharts option={streamOption} style={{ height: 215 }} /></ChartCard>
+      <ChartCard number="07" title="Fetch Plotly figure directly" note="FastAPI returns ready-to-render data and layout.">{serverFigure ? <PlotlyChart figure={serverFigure} /> : <p className="loading">Loading server-side figure…</p>}</ChartCard>
+      <ChartCard number="08" title="Streaming updates" note="Server-Sent Events append live data points."><div className="stream-status"><i className={connected ? "on" : ""} /> {connected ? "Streaming" : "Reconnecting…"}</div><PlotlyChart figure={streamFigure} height={215} /></ChartCard>
     </div>
   </main>;
 }
