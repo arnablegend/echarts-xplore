@@ -29,7 +29,7 @@ if [ ! $USER_ID -eq 0 ]; then
     updatedb
 
     cd $HOME
-    sudo -E -u $USERNAME /usr/bin/env ${USERENV} "$1"
+    sudo.ws -E -u $USERNAME /usr/bin/env ${USERENV} "$1"
 else
     exec "$1"
 fi

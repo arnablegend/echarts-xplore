@@ -18,6 +18,7 @@ RUN apt --yes --allow-unauthenticated install pkg-config vim byobu git
 
 # Project specific
 RUN apt --yes --allow-unauthenticated install nodejs npm python3.14-venv
+RUN npm install -g typescript
 
 COPY ./entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY ./.bashrc /usr/local/bin/.bashrc
