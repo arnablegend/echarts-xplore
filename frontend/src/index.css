@@ -5,6 +5,7 @@
 body { margin: 0; min-width: 320px; }
 main { max-width: 1320px; margin: 0 auto; padding: 58px 28px 72px; }
 header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 38px; }
+.header-actions { display: flex; align-items: center; gap: 10px; }.header-actions label { display: grid; gap: 4px; color: #65708b; font-size: 11px; font-weight: 600; }.header-actions select { padding: 8px 9px; border: 1px solid #dce0ea; border-radius: 8px; background: #fff; color: #19213d; font: inherit; }
 .eyebrow { color: #7167f9; letter-spacing: .12em; font-size: 11px; font-weight: 700; text-transform: uppercase; margin: 0 0 9px; }
 h1 { font-family: "Playfair Display", Georgia, serif; font-size: clamp(35px, 5vw, 54px); line-height: 1; margin: 0; letter-spacing: -.035em; }
 .subtitle { margin: 14px 0 0; color: #65708b; font-size: 16px; }
@@ -19,4 +20,4 @@ h2 { margin: 0; font-size: 16px; letter-spacing: -.01em; }.card-heading p { colo
 .metric { display: flex; align-items: center; justify-content: space-between; padding: 1px 0 0 38px; }.metric strong { font-size: 25px; }.metric button { border: 0; padding: 8px 11px; border-radius: 8px; background: #eeeefe; color: #544be1; font: 600 12px inherit; cursor: pointer; }.metric button:hover { background: #dfddff; }
 .range-label { display: flex; align-items: center; gap: 9px; padding: 8px 0 0 38px; color: #65708b; font-size: 12px; }.range-label input { accent-color: #7167f9; }.resizable-chart { min-width: 220px; transition: width .15s ease; }.responsive-wrap { width: 100%; }
 .loading, .error { min-height: 245px; display: grid; place-items: center; margin: 0; color: #8490a9; font-size: 14px; }.error { color: #bd4c62; }.stream-status { padding: 5px 0 0 38px; font-size: 12px; color: #8490a9; }.stream-status i { background: #c8cdda; }.stream-status i.on { background: #e56b8d; box-shadow: 0 0 0 3px #fbe5eb; }
-@media (max-width: 760px) { main { padding: 32px 16px 48px; } header { margin-bottom: 25px; flex-direction: column; }.grid { grid-template-columns: 1fr; gap: 14px; }.chart-card { padding: 17px; } }
+@media (max-width: 760px) { main { padding: 32px 16px 48px; } header { margin-bottom: 25px; flex-direction: column; }.header-actions { align-items: end; }.grid { grid-template-columns: 1fr; gap: 14px; }.chart-card { padding: 17px; } }

@@ -23,12 +23,21 @@ def sales():
 @app.get("/api/chart-option")
 def chart_option():
     return {
-        "data": [{"type": "bar", "x": ["North", "East", "South", "West"], "y": [82, 64, 91, 73], "marker": {"color": "#7167f9"}, "hovertemplate": "%{x}: %{y}<extra></extra>"}],
-        "layout": {
-            "title": {"text": "Figure supplied by FastAPI", "font": {"size": 14, "color": "#19213d"}, "x": 0, "xanchor": "left"},
-            "margin": {"l": 42, "r": 18, "t": 44, "b": 34}, "paper_bgcolor": "transparent", "plot_bgcolor": "transparent",
-            "font": {"family": "DM Sans, sans-serif", "color": "#65708b", "size": 11}, "showlegend": False,
-            "xaxis": {"fixedrange": True, "showgrid": False, "linecolor": "#dce0ea"}, "yaxis": {"fixedrange": True, "gridcolor": "#eef0f6"},
+        "plotly": {
+            "data": [{"type": "bar", "x": ["North", "East", "South", "West"], "y": [82, 64, 91, 73], "marker": {"color": "#7167f9"}, "hovertemplate": "%{x}: %{y}<extra></extra>"}],
+            "layout": {
+                "title": {"text": "Option supplied by FastAPI", "font": {"size": 14, "color": "#19213d"}, "x": 0, "xanchor": "left"},
+                "margin": {"l": 42, "r": 18, "t": 44, "b": 34}, "paper_bgcolor": "transparent", "plot_bgcolor": "transparent",
+                "font": {"family": "DM Sans, sans-serif", "color": "#65708b", "size": 11}, "showlegend": False,
+                "xaxis": {"fixedrange": True, "showgrid": False, "linecolor": "#dce0ea"}, "yaxis": {"fixedrange": True, "gridcolor": "#eef0f6"},
+            },
+        },
+        "echarts": {
+            "title": {"text": "Option supplied by FastAPI", "left": 0, "textStyle": {"fontSize": 14, "fontWeight": 600, "color": "#19213d"}},
+            "tooltip": {"trigger": "axis"}, "grid": {"left": 42, "right": 20, "top": 48, "bottom": 32},
+            "xAxis": {"type": "category", "data": ["North", "East", "South", "West"], "axisLine": {"lineStyle": {"color": "#dce0ea"}}},
+            "yAxis": {"type": "value", "splitLine": {"lineStyle": {"color": "#eef0f6"}}},
+            "series": [{"type": "bar", "data": [82, 64, 91, 73], "barWidth": 28, "itemStyle": {"color": "#7167f9", "borderRadius": [6, 6, 0, 0]}}],
         },
     }
 
